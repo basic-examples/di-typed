@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "name": "@this-project/test",
+  "scripts": {
+    "start": "tsx src"
+  },
+  "dependencies": {
+    "di-typed": "file:../dist",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  }
+}

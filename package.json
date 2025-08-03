@@ -1,0 +1,23 @@
+{
+  "private": true,
+  "name": "di-typed",
+  "version": "0.0.1",
+  "description": "DI library enables precise, minimal dependencies for testing",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/basic-examples/di-typed.git"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "rimraf dist && tsc && cpy README.md dist && package-json-minifier",
+    "publish": "npm run build && cd dist && npm publish",
+    "test": "cd test && npm start"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "cpy-cli": "^5.0.0",
+    "package.json-minifier": "^0.0.4",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.3"
+  }
+}
