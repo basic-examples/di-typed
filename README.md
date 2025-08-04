@@ -11,22 +11,24 @@ It enforces precise dependency declarations, ensuring that components only recei
 
 ## API Overview
 
-* `fromClass()` – Register a class that receives dependencies via its first constructor parameter
-* `fromFunction()` – Register a factory function that receives dependencies as its first parameter
-* `fromValue()` – Register a constant value
-* `registerSingleton()` – Create a container builder with singleton-lifetime registrations
-* `registerScoped()` – Same as above, but for scoped-lifetime registrations
-* `registerTransient()` – Same as above, but for transient-lifetime registrations
-* `DIContainerBuilder::register*()` – Instance-based variants of the above
+* `fromClass()` – Create a `DIRegistration` from a class whose first constructor parameter receives dependencies
+* `fromFunction()` – Create `DIRegistration` by a factory function that receives dependencies as its first parameter
+* `fromValue()` – Create `DIRegistration` by a constant value
+* `DIRegistration::singleton()` – Create `DIRegistration` with singleton lifetime
+* `DIRegistration::scoped()` – Create `DIRegistration` with scoped lifetime
+* `DIRegistration::transient()` – Create `DIRegistration` with transient lifetime
+* `register()` – Create `DIContainerBuilder` with `DIRegistration` map
+* `DIContainerBuilder::register()` – Instance method variant of `register()` for incremental registration
 * `DIContainerBuilder::build()` – Finalize and create a `DIContainer`
 * `DIContainer::_scope()` – Instantiate a new scoped container
-* `UnresolvedKeys<Builder, Key>` – Static type utility to inspect missing dependencies
+* `UnresolvedKeys<Builder, Key>` – Type-level utility to check which dependencies are missing for a given key
+  * If there's a circular dependency, `UnresolvedKeys<Builder, Key>` resolves to `never`.
 * `CircularDependencyError` – Error thrown when a cycle is detected in dependency graph
 
 ## Basic Usage Example
 
 ```ts
-interface AllRegistrations {
+interface All {
   myService: MyService;
   myRepository: MyRepository;
   someNonexistentKey: never;
@@ -39,7 +41,7 @@ class MyRepositoryImpl implements MyRepository {
 }
 
 class MyServiceImpl implements MyService {
-  constructor({ myRepository }: Pick<AllRegistrations, "myRepository">) {
+  constructor({ myRepository }: Pick<All, "myRepository">) {
     noop(myRepository);
   }
   doSomething = noop;
@@ -49,14 +51,14 @@ class MyServiceImpl implements MyService {
 class WeirdServiceImpl implements WeirdService {
   constructor({
     someNonexistentKey,
-  }: Pick<AllRegistrations, "someNonexistentKey">) {
+  }: Pick<All, "someNonexistentKey">) {
     noop(someNonexistentKey);
   }
   wtf = noop;
 }
 
 // Create and build the container
-const builder = registerSingleton({
+const builder = register({
   myService: fromClass(MyServiceImpl),
   myRepository: fromClass(MyRepositoryImpl),
   weirdDependent: fromClass(WeirdServiceImpl),
@@ -86,7 +88,10 @@ type Missing = UnresolvedKeys<typeof builder, "weirdDependent">;
 declare const builder: DIContainerBuilder<SomeRegistrationSet>;
 
 class ContextPrinter {
-  constructor(deps: Record<"context", ScopeContext>) {}
+  private readonly context: ScopeContext;
+  constructor(deps: Record<"context", ScopeContext>) {
+    this.context = deps.context;
+  }
   printSomething(): void {
     console.log(this.context.something);
   }
@@ -94,9 +99,9 @@ class ContextPrinter {
 
 // Register scoped dependencies
 const container = builder
-  .registerScoped({
-    context: fromFunction<ScopeContext>(() => ({ something: "hello" })),
-    contextPrinter: fromClass(ContextPrinter),
+  .register({
+    context: fromFunction<ScopeContext>(() => ({ something: "hello" })).scoped(),
+    contextPrinter: fromClass(ContextPrinter).scoped(),
   })
   .build();
 

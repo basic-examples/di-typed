@@ -1,5 +1,5 @@
 import {
-  registerSingleton,
+  register,
   fromClass,
   fromFunction,
   UnresolvedKeys,
@@ -12,7 +12,7 @@ type IsSameType<X, Y> = (<T>() => T extends X ? 0 : 1) extends <
   ? true
   : false;
 
-function noop(...args: any[]): any {}
+function noop(..._: any[]): any {}
 
 function assert(value: boolean): void;
 function assert<T extends true>(value: T): void;
@@ -47,7 +47,7 @@ function assertThrow(fn: () => void) {
     something: string;
   }
 
-  interface AllRegistrations {
+  interface All {
     myService: MyService;
     myRepository: MyRepository;
     someNonexistentKey: never;
@@ -64,7 +64,7 @@ function assertThrow(fn: () => void) {
     constructor({
       myRepository,
       context,
-    }: Pick<AllRegistrations, "myRepository" | "context">) {
+    }: Pick<All, "myRepository" | "context">) {
       noop(myRepository);
       this.context = context;
     }
@@ -72,20 +72,19 @@ function assertThrow(fn: () => void) {
     maybeMore = noop;
   }
   class WeirdServiceImpl implements WeirdService {
-    constructor({
-      someNonexistentKey,
-    }: Pick<AllRegistrations, "someNonexistentKey">) {
+    constructor({ someNonexistentKey }: Pick<All, "someNonexistentKey">) {
       noop(someNonexistentKey);
     }
     wtf = noop;
   }
 
-  const builder = registerSingleton({
+  const builder = register({
     myRepository: fromClass(MyRepositoryImpl),
     weirdDependent: fromClass(WeirdServiceImpl),
-  }).registerScoped({
-    context: fromFunction<ScopeContext>(() => ({ something: "hello" })),
-    myService: fromClass(MyServiceImpl),
+    context: fromFunction<ScopeContext>(() => ({
+      something: "hello",
+    })).scoped(),
+    myService: fromClass(MyServiceImpl).scoped(),
   });
 
   const container = builder.build();
@@ -114,37 +113,16 @@ function assertThrow(fn: () => void) {
 
 // Why not resolved
 (() => {
-  interface A {
-    a: string;
-  }
-  interface B {
-    b: string;
-  }
-  interface C {
-    c: string;
-  }
+  type A = Record<"a", string>;
+  type B = Record<"b", string>;
+  type C = Record<"c", string>;
+  type D = Record<"d", string>;
+  type E = Record<"e", string>;
+  type F = Record<"f", string>;
+  type G = Record<"g", string>;
+  type H = Record<"h", string>;
 
-  interface D {
-    d: string;
-  }
-
-  interface E {
-    e: string;
-  }
-
-  interface F {
-    f: string;
-  }
-
-  interface G {
-    g: string;
-  }
-
-  interface H {
-    h: string;
-  }
-
-  interface AllRegistrations {
+  interface All {
     a: A;
     b: B;
     c: C;
@@ -155,16 +133,16 @@ function assertThrow(fn: () => void) {
     h: H;
   }
 
-  const builder = registerSingleton({
+  const builder = register({
     a: fromValue({ a: "a" }),
     b: fromValue({ b: "b" }),
-    c: fromFunction(({ a, b }: Pick<AllRegistrations, "a" | "b">) => ({
+    c: fromFunction(({ a, b }: Pick<All, "a" | "b">) => ({
       c: a.a + b.b,
     })),
-    e: fromFunction(({ g, h }: Pick<AllRegistrations, "g" | "h">) => ({
+    e: fromFunction(({ g, h }: Pick<All, "g" | "h">) => ({
       e: g.g + h.h,
     })),
-    f: fromFunction(({ d, e }: Pick<AllRegistrations, "d" | "e">) => ({
+    f: fromFunction(({ d, e }: Pick<All, "d" | "e">) => ({
       f: d.d + e.e,
     })),
   });
@@ -183,24 +161,56 @@ function assertThrow(fn: () => void) {
     doSomething(): void;
   }
 
-  interface AllRegistrations {
+  interface All {
     myRepository: MyRepository;
     myDB?: MyDB;
   }
 
   class MyRepositoryImpl implements MyRepository {
     private readonly myDB: MyDB | undefined;
-    constructor({ myDB }: Pick<AllRegistrations, "myDB">) {
+    constructor({ myDB }: Pick<All, "myDB">) {
       this.myDB = myDB;
     }
     hasDB = () => this.myDB !== undefined;
   }
 
-  const builder = registerSingleton({
+  const builder = register({
     myRepository: fromClass(MyRepositoryImpl),
     myDB: fromValue(undefined),
   });
   const container = builder.build();
 
   assert(container.myRepository.hasDB() === false);
+})();
+
+// Lifetime check
+(() => {
+  type A = Record<"a", string>;
+  type B = Record<"b", string>;
+
+  interface All {
+    a: A;
+    b: B;
+  }
+
+  class AImpl implements A {
+    constructor({ b }: Pick<All, "b">) {
+      noop(b);
+    }
+    a = "a";
+  }
+
+  class BImpl implements B {
+    b = "b";
+  }
+
+  const builder1 = register({
+    b: fromClass(BImpl).transient(),
+  }).register({ a: fromClass(AImpl) });
+  assert<typeof builder1 extends string ? true : false>(true);
+
+  const builder2 = register({ a: fromClass(AImpl) }).register({
+    b: fromClass(BImpl).transient(),
+  });
+  assert<typeof builder2 extends string ? true : false>(true);
 })();

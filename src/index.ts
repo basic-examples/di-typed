@@ -1,71 +1,171 @@
+export type DILifetime = "singleton" | "scoped" | "transient";
+
 export abstract class DIRegistration<
   Self,
-  const Dependencies extends Partial<Record<string, unknown>>
+  const Dependencies extends Partial<Record<string, unknown>>,
+  Lifetime extends DILifetime
 > {
   public abstract instantiate(dependencies: Dependencies): Self;
+  private constructor(public lifetime: Lifetime) {}
 
-  public static fromClass<Self>(cls: new () => Self): DIRegistration<Self, {}>;
+  public static fromClass<Self>(
+    cls: new () => Self
+  ): DIRegistration<Self, {}, "singleton">;
   public static fromClass<
     Self,
     const Dependencies extends Partial<Record<string, unknown>>
-  >(cls: new (deps: Dependencies) => Self): DIRegistration<Self, Dependencies>;
+  >(
+    cls: new (deps: Dependencies) => Self
+  ): DIRegistration<Self, Dependencies, "singleton">;
   public static fromClass<
     Self,
     const Dependencies extends Partial<Record<string, unknown>>
-  >(cls: new (deps: Dependencies) => Self): DIRegistration<Self, Dependencies> {
-    return new (class extends DIRegistration<Self, Dependencies> {
+  >(
+    cls: new (deps: Dependencies) => Self
+  ): DIRegistration<Self, Dependencies, "singleton"> {
+    return new (class extends DIRegistration<Self, Dependencies, "singleton"> {
+      constructor() {
+        super("singleton");
+      }
       instantiate(dependencies: Dependencies) {
         return new cls(dependencies);
       }
     })();
   }
 
-  public static fromFunction<Self>(func: () => Self): DIRegistration<Self, {}>;
+  public static fromFunction<Self>(
+    func: () => Self
+  ): DIRegistration<Self, {}, "singleton">;
   public static fromFunction<
     Self,
     const Dependencies extends Partial<Record<string, unknown>>
-  >(func: (deps: Dependencies) => Self): DIRegistration<Self, Dependencies>;
+  >(
+    func: (deps: Dependencies) => Self
+  ): DIRegistration<Self, Dependencies, "singleton">;
   public static fromFunction<
     Self,
     const Dependencies extends Partial<Record<string, unknown>>
-  >(func: (deps: Dependencies) => Self): DIRegistration<Self, Dependencies> {
-    return new (class extends DIRegistration<Self, Dependencies> {
+  >(
+    func: (deps: Dependencies) => Self
+  ): DIRegistration<Self, Dependencies, "singleton"> {
+    return new (class extends DIRegistration<Self, Dependencies, "singleton"> {
+      constructor() {
+        super("singleton");
+      }
       instantiate(dependencies: Dependencies) {
         return func(dependencies);
       }
     })();
   }
 
-  public static fromValue<Self>(value: Self): DIRegistration<Self, {}> {
-    return new (class extends DIRegistration<Self, {}> {
+  public static fromValue<Self>(
+    value: Self
+  ): DIRegistration<Self, {}, "singleton"> {
+    return new (class extends DIRegistration<Self, {}, "singleton"> {
+      constructor() {
+        super("singleton");
+      }
       instantiate() {
         return value;
+      }
+    })();
+  }
+
+  public singleton(): DIRegistration<Self, Dependencies, "singleton"> {
+    const self = this;
+    return new (class extends DIRegistration<Self, Dependencies, "singleton"> {
+      constructor() {
+        super("singleton");
+      }
+      instantiate(dependencies: Dependencies) {
+        return self.instantiate(dependencies);
+      }
+    })();
+  }
+
+  public scoped(): DIRegistration<Self, Dependencies, "scoped"> {
+    const self = this;
+    return new (class extends DIRegistration<Self, Dependencies, "scoped"> {
+      constructor() {
+        super("scoped");
+      }
+      instantiate(dependencies: Dependencies) {
+        return self.instantiate(dependencies);
+      }
+    })();
+  }
+
+  public transient(): DIRegistration<Self, Dependencies, "transient"> {
+    const self = this;
+    return new (class extends DIRegistration<Self, Dependencies, "transient"> {
+      constructor() {
+        super("transient");
+      }
+      instantiate(dependencies: Dependencies) {
+        return self.instantiate(dependencies);
       }
     })();
   }
 }
 
 export type DIRegistrationToType<
-  T extends DIRegistration<unknown, Partial<Record<string, unknown>>>
-> = T extends DIRegistration<infer I, Partial<Record<string, unknown>>>
+  T extends DIRegistration<
+    unknown,
+    Partial<Record<string, unknown>>,
+    DILifetime
+  >
+> = T extends DIRegistration<
+  infer I,
+  Partial<Record<string, unknown>>,
+  DILifetime
+>
   ? I
   : never;
 
 export type DIRegistrationToDependencies<
-  T extends DIRegistration<unknown, Partial<Record<string, unknown>>>
-> = T extends DIRegistration<unknown, infer I> ? I : never;
+  T extends DIRegistration<
+    unknown,
+    Partial<Record<string, unknown>>,
+    DILifetime
+  >
+> = T extends DIRegistration<unknown, infer I, DILifetime> ? I : never;
 
-export type RegistrationMapToInstanceMap<
+export type DIRegistrationToLifetime<
+  T extends DIRegistration<
+    unknown,
+    Partial<Record<string, unknown>>,
+    DILifetime
+  >
+> = T extends DIRegistration<
+  unknown,
+  Partial<Record<string, unknown>>,
+  infer I extends DILifetime
+>
+  ? I
+  : never;
+
+export type DIRegistrationMapToInstanceMap<
   Map extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+    >
   >
 > = {
-  [K in keyof Map]-?: RegistrationToInstance<Exclude<Map[K], undefined>>;
+  [K in keyof Map]-?: DIRegistrationToInstance<Exclude<Map[K], undefined>>;
 };
 
-export type RegistrationToInstance<
-  T extends DIRegistration<unknown, Partial<Record<string, unknown>>>
-> = T extends DIRegistration<infer I, Partial<Record<string, unknown>>>
+export type DIRegistrationToInstance<
+  T extends DIRegistration<
+    unknown,
+    Partial<Record<string, unknown>>,
+    DILifetime
+  >
+> = T extends DIRegistration<
+  infer I,
+  Partial<Record<string, unknown>>,
+  DILifetime
+>
   ? I
   : never;
 
@@ -85,64 +185,102 @@ type UnionAny<T> = ReturnType<
   Extract<UnionToIntersection<T extends any ? () => T : never>, () => unknown>
 >;
 
-export type RegisterSingletonResult<
+export type RegisterResult<
   Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "singleton">
+    >
   >,
   Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "scoped">
+    >
   >,
   Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "transient">
+    >
   >,
   T extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+    >
   >
 > = Extract<
   keyof Singleton | keyof Scoped | keyof Transient,
   keyof T
 > extends never
-  ? RegisterSingletonResultInternal<Singleton, Scoped, Transient, T>
+  ? RegisterResultInternal<Singleton, Scoped, Transient, T>
   : `[Error] The key ${Extract<
       Extract<keyof Singleton | keyof Scoped | keyof Transient, keyof T>,
       string
     >} is already registered`;
 
-type RegisterSingletonResultInternal<
+type RegisterResultInternal<
   Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "singleton">
+    >
   >,
   Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "scoped">
+    >
   >,
   Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "transient">
+    >
   >,
   T extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+    >
   >
 > = keyof T extends never
-  ? DIContainerBuilder<Singleton & T, Scoped, Transient>
+  ? DIContainerBuilder<Singleton, Scoped, Transient>
   : string extends keyof T
   ? "[Error] The key must be a literal instead of any string"
   : UnionAny<keyof T> extends infer I extends keyof T
   ? I extends `_${string}`
     ? `[Error] Key ${I} cannot start with _`
-    : T[I] extends DIRegistration<unknown, Partial<Record<string, unknown>>>
+    : T[I] extends DIRegistration<
+        unknown,
+        Partial<Record<string, unknown>>,
+        DILifetime
+      >
     ? I extends string
-      ? RegisterSingletonError<
+      ? RegisterError<
           Singleton,
           Scoped,
           Transient,
           I,
           DIRegistrationToType<T[I]>,
-          DIRegistrationToDependencies<T[I]>
+          DIRegistrationToDependencies<T[I]>,
+          DIRegistrationToLifetime<T[I]>
         > extends infer Error extends string
         ? [Error] extends [never]
-          ? RegisterSingletonResultInternal<
-              Singleton & Pick<T, I>,
-              Scoped,
-              Transient,
+          ? RegisterResultInternal<
+              Singleton &
+                (DIRegistrationToLifetime<T[I]> extends "singleton"
+                  ? Pick<T, I>
+                  : {}),
+              Scoped &
+                (DIRegistrationToLifetime<T[I]> extends "scoped"
+                  ? Pick<T, I>
+                  : {}),
+              Transient &
+                (DIRegistrationToLifetime<T[I]> extends "transient"
+                  ? Pick<T, I>
+                  : {}),
               Omit<T, I>
             >
           : Error
@@ -152,47 +290,84 @@ type RegisterSingletonResultInternal<
   : never;
 
 // check for existing items' dependencies and newly added item's type
-type RegisterSingletonError<
+type RegisterError<
   Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "singleton">
+    >
   >,
   Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "scoped">
+    >
   >,
   Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "transient">
+    >
   >,
   Key extends string,
   Type,
-  Dependencies extends Partial<Record<string, unknown>>
-> = {
-  [K in keyof (Singleton & Scoped & Transient)]: {
-    [L in keyof DIRegistrationToDependencies<
-      Exclude<(Singleton & Scoped & Transient)[K], undefined>
-    >]: L extends Key
-      ? DIRegistrationToDependencies<
-          Exclude<(Singleton & Scoped & Transient)[K], undefined>
-        >[L]
-      : never;
-  }[keyof DIRegistrationToDependencies<
-    Exclude<(Singleton & Scoped & Transient)[K], undefined>
-  >];
-}[keyof (Singleton & Scoped & Transient)] extends infer I
+  Dependencies extends Partial<Record<string, unknown>>,
+  Lifetime extends DILifetime
+> = UnionToIntersection<Lifetime> extends never
+  ? `[Error] Lifetime ${Lifetime} is not a valid lifetime`
+  :
+      | {
+          [K in keyof Singleton]: {
+            [L in keyof DIRegistrationToDependencies<
+              Exclude<Singleton[K], undefined>
+            >]: L extends Key
+              ? DIRegistrationToDependencies<
+                  Exclude<Singleton[K], undefined>
+                >[L]
+              : never;
+          }[keyof DIRegistrationToDependencies<
+            Exclude<Singleton[K], undefined>
+          >];
+        }[keyof Singleton]
+      | {
+          [K in keyof Scoped]: {
+            [L in keyof DIRegistrationToDependencies<
+              Exclude<Scoped[K], undefined>
+            >]: L extends Key
+              ? DIRegistrationToDependencies<Exclude<Scoped[K], undefined>>[L]
+              : never;
+          }[keyof DIRegistrationToDependencies<Exclude<Scoped[K], undefined>>];
+        }[keyof Scoped]
+      | {
+          [K in keyof Transient]: {
+            [L in keyof DIRegistrationToDependencies<
+              Exclude<Transient[K], undefined>
+            >]: L extends Key
+              ? DIRegistrationToDependencies<
+                  Exclude<Transient[K], undefined>
+                >[L]
+              : never;
+          }[keyof DIRegistrationToDependencies<
+            Exclude<Transient[K], undefined>
+          >];
+        }[keyof Transient] extends infer I
   ? [I] extends [never]
-    ? RegisterSingletonErrorInternal<
+    ? RegisterErrorInternal<
         Singleton,
         Scoped,
         Transient,
         Key,
-        Dependencies
+        Dependencies,
+        Lifetime
       >
     : Type extends I
-    ? RegisterSingletonErrorInternal<
+    ? RegisterErrorInternal<
         Singleton,
         Scoped,
         Transient,
         Key,
-        Dependencies
+        Dependencies,
+        Lifetime
       >
     : `[Error] The key ${Key} has a different type than dependencies` & {
         type: Type;
@@ -201,18 +376,28 @@ type RegisterSingletonError<
   : never;
 
 // check for newly added item's dependencies and existing items' type and lifetime
-type RegisterSingletonErrorInternal<
+type RegisterErrorInternal<
   Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "singleton">
+    >
   >,
   Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "scoped">
+    >
   >,
   Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "transient">
+    >
   >,
   Key extends string,
-  Dependencies extends Partial<Record<string, unknown>>
+  Dependencies extends Partial<Record<string, unknown>>,
+  Lifetime extends DILifetime
 > = Key extends keyof Dependencies
   ? `[Error] Key ${Key} requires self`
   :
@@ -231,382 +416,46 @@ type RegisterSingletonErrorInternal<
         }[Extract<keyof Dependencies, keyof Singleton>]
       | (Extract<keyof Dependencies, keyof Scoped> extends never
           ? never
-          : `[Error] Key ${Key} is singleton but dependency ${Extract<
+          : Lifetime extends "singleton"
+          ? `[Error] Key ${Key} is singleton but dependency ${Extract<
               Extract<keyof Dependencies, keyof Scoped>,
               string | number
-            >} is scoped`)
+            >} is scoped`
+          : never)
       | (Extract<keyof Dependencies, keyof Transient> extends never
           ? never
-          : `[Error] Key ${Key} is singleton but dependency ${Extract<
+          : Lifetime extends "singleton" | "scoped"
+          ? `[Error] Key ${Key} is ${Lifetime} but dependency ${Extract<
               Extract<keyof Dependencies, keyof Transient>,
               string | number
-            >} is transient`);
-
-export type RegisterScopedResult<
-  Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  T extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >
-> = Extract<
-  keyof Singleton | keyof Scoped | keyof Transient,
-  keyof T
-> extends never
-  ? RegisterScopedResultInternal<Singleton, Scoped, Transient, T>
-  : `[Error] The key ${Extract<
-      Extract<keyof Singleton | keyof Scoped | keyof Transient, keyof T>,
-      string
-    >} is already registered`;
-
-type RegisterScopedResultInternal<
-  Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  T extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >
-> = keyof T extends never
-  ? DIContainerBuilder<Singleton, Scoped & T, Transient>
-  : string extends keyof T
-  ? "[Error] The key must be a literal instead of any string"
-  : UnionAny<keyof T> extends infer I extends keyof T
-  ? I extends `_${string}`
-    ? `[Error] Key ${I} cannot start with _`
-    : T[I] extends DIRegistration<unknown, Partial<Record<string, unknown>>>
-    ? I extends string
-      ? RegisterScopedError<
-          Singleton,
-          Scoped,
-          Transient,
-          I,
-          DIRegistrationToType<T[I]>,
-          DIRegistrationToDependencies<T[I]>
-        > extends infer Error extends string
-        ? [Error] extends [never]
-          ? RegisterScopedResultInternal<
-              Singleton,
-              Scoped & Pick<T, I>,
-              Transient,
-              Omit<T, I>
-            >
-          : Error
-        : never
-      : `[Error] The key ${Extract<I, string | number>} is not a string`
-    : `[Error] The key ${Extract<I, string | number>} can be undefined`
-  : never;
-
-// check for existing items' dependencies and newly added item's type
-type RegisterScopedError<
-  Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Key extends string,
-  Type,
-  Dependencies extends Partial<Record<string, unknown>>
-> = {
-  [K in keyof (Singleton & Scoped & Transient)]: {
-    [L in keyof DIRegistrationToDependencies<
-      Exclude<(Singleton & Scoped & Transient)[K], undefined>
-    >]: L extends Key
-      ? DIRegistrationToDependencies<
-          Exclude<(Singleton & Scoped & Transient)[K], undefined>
-        >[L]
-      : never;
-  }[keyof DIRegistrationToDependencies<
-    Exclude<(Singleton & Scoped & Transient)[K], undefined>
-  >];
-}[keyof (Singleton & Scoped & Transient)] extends infer I
-  ? [I] extends [never]
-    ? RegisterScopedErrorInternal<
-        Singleton,
-        Scoped,
-        Transient,
-        Key,
-        Dependencies
-      >
-    : Type extends I
-    ? RegisterScopedErrorInternal<
-        Singleton,
-        Scoped,
-        Transient,
-        Key,
-        Dependencies
-      >
-    : `[Error] The key ${Key} has a different type than dependencies` & {
-        type: Type;
-        dependencies: I;
-      }
-  : never;
-
-// check for newly added item's dependencies and existing items' type and lifetime
-type RegisterScopedErrorInternal<
-  Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Key extends string,
-  Dependencies extends Partial<Record<string, unknown>>
-> = Key extends keyof Dependencies
-  ? `[Error] Key ${Key} requires self`
-  :
-      | {
-          [K in Extract<
-            keyof Dependencies,
-            keyof Singleton
-          >]: DIRegistrationToType<
-            Exclude<Singleton[K], undefined>
-          > extends Dependencies[K]
-            ? never
-            : `[Error] Key ${Key} has incompatible dependency: ${Extract<
-                K,
-                string | number
-              >}`;
-        }[Extract<keyof Dependencies, keyof Singleton>]
-      | {
-          [K in Extract<
-            keyof Dependencies,
-            keyof Scoped
-          >]: DIRegistrationToType<
-            Exclude<Scoped[K], undefined>
-          > extends Dependencies[K]
-            ? never
-            : `[Error] Key ${Key} has incompatible dependency: ${Extract<
-                K,
-                string | number
-              >}`;
-        }[Extract<keyof Dependencies, keyof Scoped>]
-      | (Extract<keyof Dependencies, keyof Transient> extends never
-          ? never
-          : `[Error] Key ${Key} is scoped but dependency ${Extract<
-              Extract<keyof Dependencies, keyof Transient>,
-              string | number
-            >} is transient`)
-      | {
-          [K in keyof Singleton]: {
-            [L in keyof DIRegistrationToDependencies<
-              Exclude<Singleton[K], undefined>
-            >]: L extends Key
-              ? `[Error] Key ${Key} is scoped but its dependent ${L} is singleton`
-              : never;
-          }[keyof DIRegistrationToDependencies<
-            Exclude<Singleton[K], undefined>
-          >];
-        }[keyof Singleton];
-
-export type RegisterTransientResult<
-  Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  T extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >
-> = Extract<
-  keyof Singleton | keyof Scoped | keyof Transient,
-  keyof T
-> extends never
-  ? RegisterTransientResultInternal<Singleton, Scoped, Transient, T>
-  : `[Error] The key ${Extract<
-      Extract<keyof Singleton | keyof Scoped | keyof Transient, keyof T>,
-      string
-    >} is already registered`;
-
-type RegisterTransientResultInternal<
-  Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  T extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >
-> = keyof T extends never
-  ? DIContainerBuilder<Singleton, Scoped, Transient & T>
-  : string extends keyof T
-  ? "[Error] The key must be a literal instead of any string"
-  : UnionAny<keyof T> extends infer I extends keyof T
-  ? I extends `_${string}`
-    ? `[Error] Key ${I} cannot start with _`
-    : T[I] extends DIRegistration<unknown, Partial<Record<string, unknown>>>
-    ? I extends string
-      ? RegisterTransientError<
-          Singleton,
-          Scoped,
-          Transient,
-          I,
-          DIRegistrationToType<T[I]>,
-          DIRegistrationToDependencies<T[I]>
-        > extends infer Error extends string
-        ? [Error] extends [never]
-          ? RegisterTransientResultInternal<
-              Singleton,
-              Scoped,
-              Transient & Pick<T, I>,
-              Omit<T, I>
-            >
-          : Error
-        : never
-      : `[Error] The key ${Extract<I, string | number>} is not a string`
-    : `[Error] The key ${Extract<I, string | number>} can be undefined`
-  : never;
-
-// check for existing items' dependencies and newly added item's type
-type RegisterTransientError<
-  Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Key extends string,
-  Type,
-  Dependencies extends Partial<Record<string, unknown>>
-> = {
-  [K in keyof (Singleton & Scoped & Transient)]: {
-    [L in keyof DIRegistrationToDependencies<
-      Exclude<(Singleton & Scoped & Transient)[K], undefined>
-    >]: L extends Key
-      ? DIRegistrationToDependencies<
-          Exclude<(Singleton & Scoped & Transient)[K], undefined>
-        >[L]
-      : never;
-  }[keyof DIRegistrationToDependencies<
-    Exclude<(Singleton & Scoped & Transient)[K], undefined>
-  >];
-}[keyof (Singleton & Scoped & Transient)] extends infer I
-  ? [I] extends [never]
-    ? RegisterTransientErrorInternal<
-        Singleton,
-        Scoped,
-        Transient,
-        Key,
-        Dependencies
-      >
-    : Type extends I
-    ? RegisterTransientErrorInternal<
-        Singleton,
-        Scoped,
-        Transient,
-        Key,
-        Dependencies
-      >
-    : `[Error] The key ${Key} has a different type than dependencies` & {
-        type: Type;
-        dependencies: I;
-      }
-  : never;
-
-// check for newly added item's dependencies and existing items' type and lifetime
-type RegisterTransientErrorInternal<
-  Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-  >,
-  Key extends string,
-  Dependencies extends Partial<Record<string, unknown>>
-> = Key extends keyof Dependencies
-  ? `[Error] Key ${Key} requires self`
-  :
-      | {
-          [K in Extract<
-            keyof Dependencies,
-            keyof Singleton
-          >]: DIRegistrationToType<
-            Exclude<Singleton[K], undefined>
-          > extends Dependencies[K]
-            ? never
-            : `[Error] Key ${Key} has incompatible dependency: ${Extract<
-                K,
-                string | number
-              >}`;
-        }[Extract<keyof Dependencies, keyof Singleton>]
-      | {
-          [K in Extract<
-            keyof Dependencies,
-            keyof Scoped
-          >]: DIRegistrationToType<
-            Exclude<Scoped[K], undefined>
-          > extends Dependencies[K]
-            ? never
-            : `[Error] Key ${Key} has incompatible dependency: ${Extract<
-                K,
-                string | number
-              >}`;
-        }[Extract<keyof Dependencies, keyof Scoped>]
-      | {
-          [K in Extract<
-            keyof Dependencies,
-            keyof Transient
-          >]: DIRegistrationToType<
-            Exclude<Transient[K], undefined>
-          > extends Dependencies[K]
-            ? never
-            : `[Error] Key ${Key} has incompatible dependency: ${Extract<
-                K,
-                string | number
-              >}`;
-        }[Extract<keyof Dependencies, keyof Transient>]
-      | {
-          [K in keyof Singleton]: {
-            [L in keyof DIRegistrationToDependencies<
-              Exclude<Singleton[K], undefined>
-            >]: L extends Key
-              ? `[Error] Key ${Key} is scoped but its dependent ${L} is singleton`
-              : never;
-          }[keyof DIRegistrationToDependencies<
-            Exclude<Singleton[K], undefined>
-          >];
-        }[keyof Singleton]
-      | {
-          [K in keyof Scoped]: {
-            [L in keyof DIRegistrationToDependencies<
-              Exclude<Scoped[K], undefined>
-            >]: L extends Key
-              ? `[Error] Key ${Key} is transient but its dependent ${L} is scoped`
-              : never;
-          }[keyof DIRegistrationToDependencies<Exclude<Scoped[K], undefined>>];
-        }[keyof Scoped];
+            >} is transient`
+          : never)
+      | (Lifetime extends "scoped" | "transient"
+          ? {
+              [K in keyof Singleton]: {
+                [L in keyof DIRegistrationToDependencies<
+                  Exclude<Singleton[K], undefined>
+                >]: L extends Key
+                  ? `[Error] Key ${Key} is ${Lifetime} but its dependent ${L} is singleton`
+                  : never;
+              }[keyof DIRegistrationToDependencies<
+                Exclude<Singleton[K], undefined>
+              >];
+            }[keyof Singleton]
+          : never)
+      | (Lifetime extends "transient"
+          ? {
+              [K in keyof Scoped]: {
+                [L in keyof DIRegistrationToDependencies<
+                  Exclude<Scoped[K], undefined>
+                >]: L extends Key
+                  ? `[Error] Key ${Key} is transient but its dependent ${L} is scoped`
+                  : never;
+              }[keyof DIRegistrationToDependencies<
+                Exclude<Scoped[K], undefined>
+              >];
+            }[keyof Scoped]
+          : never);
 
 export interface DIContainerBase<T> {
   _scope: () => DIContainer<T>;
@@ -616,24 +465,36 @@ export type DIContainer<T> = T & DIContainerBase<T>;
 
 export type BuildResult<
   Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "singleton">
+    >
   >,
   Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "scoped">
+    >
   >,
   Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "transient">
+    >
   >
 > = DIContainer<
   Pick<
-    RegistrationMapToInstanceMap<Singleton & Scoped & Transient>,
+    DIRegistrationMapToInstanceMap<Singleton & Scoped & Transient>,
     ResolvedKeys<Singleton & Scoped & Transient, never>
   >
 >;
 
 type ResolvedKeys<
   Map extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+    >
   >,
   AlreadyResolvedKeys extends keyof Map
 > = TryResolveAnyKey<Map, AlreadyResolvedKeys> extends infer I extends keyof Map
@@ -645,7 +506,10 @@ type ResolvedKeys<
 // resolves to any newly resolvable key
 type TryResolveAnyKey<
   Map extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+    >
   >,
   ResolvedKeys extends keyof Map
 > = {
@@ -664,13 +528,22 @@ type Internal<T> = {
 
 export class DIContainerBuilder<
   const Singleton extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "singleton">
+    >
   >,
   const Scoped extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "scoped">
+    >
   >,
   const Transient extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "transient">
+    >
   >
 > {
   private constructor(
@@ -679,115 +552,159 @@ export class DIContainerBuilder<
     private readonly transient: Transient
   ) {}
 
-  public static registerSingleton<
+  public static register<
     const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+      Record<
+        string,
+        DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+      >
     >
-  >(items: T): RegisterSingletonResult<{}, {}, {}, T>;
-  public static registerSingleton<
+  >(items: T): RegisterResult<{}, {}, {}, T>;
+  public static register<
     const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-    >
-  >(items: T): unknown {
-    return new DIContainerBuilder(items, {}, {});
-  }
-
-  public static registerScoped<
-    const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-    >
-  >(items: T): RegisterScopedResult<{}, {}, {}, T>;
-  public static registerScoped<
-    const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-    >
-  >(items: T): unknown {
-    return new DIContainerBuilder({}, items, {});
-  }
-
-  public static registerTransient<
-    const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-    >
-  >(items: T): RegisterTransientResult<{}, {}, {}, T>;
-  public static registerTransient<
-    const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-    >
-  >(items: T): unknown {
-    return new DIContainerBuilder({}, {}, items);
-  }
-
-  public registerSingleton<
-    const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-    >
-  >(items: T): RegisterSingletonResult<Singleton, Scoped, Transient, T>;
-  public registerSingleton<
-    const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+      Record<
+        string,
+        DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+      >
     >
   >(items: T): unknown {
     return new DIContainerBuilder(
-      { ...this.singleton, ...items },
-      this.scoped,
-      this.transient
+      Object.fromEntries(
+        Object.entries(items).filter(
+          (
+            entry
+          ): entry is [
+            key: string,
+            value: DIRegistration<
+              unknown,
+              Partial<Record<string, unknown>>,
+              "singleton"
+            >
+          ] => entry[1]!.lifetime === "singleton"
+        )
+      ),
+      Object.fromEntries(
+        Object.entries(items).filter(
+          (
+            entry
+          ): entry is [
+            key: string,
+            value: DIRegistration<
+              unknown,
+              Partial<Record<string, unknown>>,
+              "scoped"
+            >
+          ] => entry[1]!.lifetime === "scoped"
+        )
+      ),
+      Object.fromEntries(
+        Object.entries(items).filter(
+          (
+            entry
+          ): entry is [
+            key: string,
+            value: DIRegistration<
+              unknown,
+              Partial<Record<string, unknown>>,
+              "transient"
+            >
+          ] => entry[1]!.lifetime === "transient"
+        )
+      )
     );
   }
 
-  public registerScoped<
+  public register<
     const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+      Record<
+        string,
+        DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+      >
     >
-  >(items: T): RegisterScopedResult<Singleton, Scoped, Transient, T>;
-  public registerScoped<
+  >(items: T): RegisterResult<Singleton, Scoped, Transient, T>;
+  public register<
     const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+      Record<
+        string,
+        DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+      >
     >
   >(items: T): unknown {
     return new DIContainerBuilder(
-      this.singleton,
-      { ...this.scoped, ...items },
-      this.transient
+      {
+        ...this.singleton,
+        ...Object.fromEntries(
+          Object.entries(items).filter(
+            (
+              entry
+            ): entry is [
+              key: string,
+              value: DIRegistration<
+                unknown,
+                Partial<Record<string, unknown>>,
+                "singleton"
+              >
+            ] => entry[1]!.lifetime === "singleton"
+          )
+        ),
+      },
+      {
+        ...this.scoped,
+        ...Object.fromEntries(
+          Object.entries(items).filter(
+            (
+              entry
+            ): entry is [
+              key: string,
+              value: DIRegistration<
+                unknown,
+                Partial<Record<string, unknown>>,
+                "scoped"
+              >
+            ] => entry[1]!.lifetime === "scoped"
+          )
+        ),
+      },
+      {
+        ...this.transient,
+        ...Object.fromEntries(
+          Object.entries(items).filter(
+            (
+              entry
+            ): entry is [
+              key: string,
+              value: DIRegistration<
+                unknown,
+                Partial<Record<string, unknown>>,
+                "transient"
+              >
+            ] => entry[1]!.lifetime === "transient"
+          )
+        ),
+      }
     );
-  }
-
-  public registerTransient<
-    const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-    >
-  >(items: T): RegisterTransientResult<Singleton, Scoped, Transient, T>;
-  public registerTransient<
-    const T extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
-    >
-  >(items: T): unknown {
-    return new DIContainerBuilder(this.singleton, this.scoped, {
-      ...this.transient,
-      ...items,
-    });
   }
 
   public build(): BuildResult<Singleton, Scoped, Transient>;
   public build(): unknown {
     const singletonInstances: Internal<
-      RegistrationMapToInstanceMap<Singleton>
+      DIRegistrationMapToInstanceMap<Singleton>
     > = {};
     const resolving: Partial<Record<keyof Singleton, true>> = {};
     const scope = () => {
-      const scopedInstances: Internal<RegistrationMapToInstanceMap<Scoped>> =
+      const scopedInstances: Internal<DIRegistrationMapToInstanceMap<Scoped>> =
         {};
-      let proxy: RegistrationMapToInstanceMap<Singleton & Scoped & Transient>;
+      let proxy: DIRegistrationMapToInstanceMap<Singleton & Scoped & Transient>;
       const resolve = <
         const K extends Extract<keyof (Singleton & Scoped & Transient), string>
       >(
         key: K
-      ): RegistrationMapToInstanceMap<Singleton & Scoped & Transient>[K] => {
+      ): DIRegistrationMapToInstanceMap<Singleton & Scoped & Transient>[K] => {
         if (this.singleton[key]) {
           if (singletonInstances[key] !== undefined) {
             return singletonInstances[
               key
-            ][0] as RegistrationMapToInstanceMap<Singleton>[K];
+            ][0] as DIRegistrationMapToInstanceMap<Singleton>[K];
           }
           if (resolving[key]) {
             throw new CircularDependencyError(
@@ -798,7 +715,7 @@ export class DIContainerBuilder<
           resolving[key] = true;
           const result = this.singleton[key]!.instantiate(
             proxy
-          ) as RegistrationMapToInstanceMap<Singleton>[K];
+          ) as DIRegistrationMapToInstanceMap<Singleton>[K];
           singletonInstances[key] = [result];
           delete resolving[key];
           return result;
@@ -806,7 +723,7 @@ export class DIContainerBuilder<
           if (scopedInstances[key] !== undefined) {
             return scopedInstances[
               key
-            ][0] as RegistrationMapToInstanceMap<Scoped>[K];
+            ][0] as DIRegistrationMapToInstanceMap<Scoped>[K];
           }
           if (resolving[key]) {
             throw new CircularDependencyError(
@@ -817,14 +734,14 @@ export class DIContainerBuilder<
           resolving[key] = true;
           const result = this.scoped[key]!.instantiate(
             proxy
-          ) as RegistrationMapToInstanceMap<Scoped>[K];
+          ) as DIRegistrationMapToInstanceMap<Scoped>[K];
           scopedInstances[key] = [result];
           delete resolving[key];
           return result;
         } else if (this.transient[key]) {
           return this.transient[key]!.instantiate(
             proxy
-          ) as RegistrationMapToInstanceMap<Transient>[K];
+          ) as DIRegistrationMapToInstanceMap<Transient>[K];
         } else {
           throw new Error(`Key ${key} not found`);
         }
@@ -839,7 +756,7 @@ export class DIContainerBuilder<
             return resolve(key as Extract<keyof Singleton, string>);
           },
         }
-      ) as RegistrationMapToInstanceMap<Singleton & Scoped & Transient>;
+      ) as DIRegistrationMapToInstanceMap<Singleton & Scoped & Transient>;
       return proxy;
     };
     return scope();
@@ -849,34 +766,50 @@ export class DIContainerBuilder<
 export const fromClass = DIRegistration.fromClass;
 export const fromFunction = DIRegistration.fromFunction;
 export const fromValue = DIRegistration.fromValue;
-export const registerSingleton = DIContainerBuilder.registerSingleton;
-export const registerScoped = DIContainerBuilder.registerScoped;
-export const registerTransient = DIContainerBuilder.registerTransient;
+export const register = DIContainerBuilder.register;
 
 export type UnresolvedKeys<
   ContainerBuilder,
   ToResolve extends ContainerBuilder extends DIContainerBuilder<
     infer I extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+      Record<
+        string,
+        DIRegistration<unknown, Partial<Record<string, unknown>>, "singleton">
+      >
     >,
     infer J extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+      Record<
+        string,
+        DIRegistration<unknown, Partial<Record<string, unknown>>, "scoped">
+      >
     >,
     infer K extends Partial<
-      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+      Record<
+        string,
+        DIRegistration<unknown, Partial<Record<string, unknown>>, "transient">
+      >
     >
   >
     ? keyof (I & J & K)
     : never
 > = ContainerBuilder extends DIContainerBuilder<
   infer I extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "singleton">
+    >
   >,
   infer J extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "scoped">
+    >
   >,
   infer K extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, "transient">
+    >
   >
 >
   ? UnresolvedKeysForMap<I & J & K, ToResolve>
@@ -884,7 +817,10 @@ export type UnresolvedKeys<
 
 export type UnresolvedKeysForMap<
   Map extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+    >
   >,
   ToResolve extends keyof Map
 > = UnresolvedKeysInternal<
@@ -898,7 +834,10 @@ export type UnresolvedKeysForMap<
 
 type UnresolvedKeysInternal<
   Map extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+    >
   >,
   Resolved extends keyof Map,
   Unresolved extends string
@@ -914,7 +853,10 @@ type UnresolvedKeysInternal<
 // consumes Unresolved, resolves to [newly resolved keys, unresolved keys]
 type TryResolve<
   Map extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+    >
   >,
   Resolved extends keyof Map,
   Unresolved extends string
@@ -936,7 +878,10 @@ type TryResolve<
 
 type TryResolveInternal<
   Map extends Partial<
-    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    Record<
+      string,
+      DIRegistration<unknown, Partial<Record<string, unknown>>, DILifetime>
+    >
   >,
   Resolved extends keyof Map,
   Unresolved extends string,
