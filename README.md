@@ -1,32 +1,31 @@
-# `di-typed` – DI library enables precise, minimal dependencies for testing
+# `di-typed`: Type-Safe, Minimal Dependency Injection for Testing
 
-`di-typed` is a minimalistic, type-safe Dependency Injection (DI) library designed especially for testing.  
-It ensures that each component only declares exactly the dependencies it needs — no more, no less.
+`di-typed` is a lightweight, type-safe Dependency Injection (DI) library focused on testability and minimal configuration.
+It enforces precise dependency declarations, ensuring that components only receive what they explicitly depend on—nothing more, nothing less.
 
-- Strong TypeScript support
-- Auto-prune registrations with unmet dependencies
-- Explicit and minimal dependency declarations
-- Designed especially for testability
-- Usual lifetime support: singleton, scoped, transient
+* Comprehensive TypeScript support
+* Automatically excludes registrations with unresolved dependencies
+* Promotes explicit and minimal dependency declarations
+* Designed for testing and modular design
+* Supports standard lifetimes: singleton, scoped, transient
 
-## API
+## API Overview
 
-- `fromClass()` - create registration using class accepts dependencies as first constructor parameter
-- `fromFunction()` - create registration using function accepts dependencies as first parameter
-- `fromValue()` - create registration using value
-- `registerSingleton()` - create `DIContainerBuilder` from registrations
-- `registerScoped()` - same as above, but with scoped lifetime
-- `registerTransient()` - same as above, but with transient lifetime
-- `DIContainerBuilder::register*()` - same as three above, but based on `this`
-- `DIContainerBuilder::build()` - build `DIContainer`
-- `DIContainer::_scope()` - create scoped container
-- `UnresolvedKeys<ContainerBuilder, Key>` - type to check which keys are missing
-- `CircularDependencyError` - error thrown on circular dependency, likely unused
+* `fromClass()` – Register a class that receives dependencies via its first constructor parameter
+* `fromFunction()` – Register a factory function that receives dependencies as its first parameter
+* `fromValue()` – Register a constant value
+* `registerSingleton()` – Create a container builder with singleton-lifetime registrations
+* `registerScoped()` – Same as above, but for scoped-lifetime registrations
+* `registerTransient()` – Same as above, but for transient-lifetime registrations
+* `DIContainerBuilder::register*()` – Instance-based variants of the above
+* `DIContainerBuilder::build()` – Finalize and create a `DIContainer`
+* `DIContainer::_scope()` – Instantiate a new scoped container
+* `UnresolvedKeys<Builder, Key>` – Static type utility to inspect missing dependencies
+* `CircularDependencyError` – Error thrown when a cycle is detected in dependency graph
 
-## Basic Usage
+## Basic Usage Example
 
 ```ts
-// define all registrations
 interface AllRegistrations {
   myService: MyService;
   myRepository: MyRepository;
@@ -34,13 +33,11 @@ interface AllRegistrations {
   weirdDependent: WeirdService;
 }
 
-// this doesn't requires any dependencies
 class MyRepositoryImpl implements MyRepository {
   saveSomething = noop;
   maybeMore = noop;
 }
 
-// dependencies are defined in the constructor type
 class MyServiceImpl implements MyService {
   constructor({ myRepository }: Pick<AllRegistrations, "myRepository">) {
     noop(myRepository);
@@ -49,7 +46,6 @@ class MyServiceImpl implements MyService {
   maybeMore = noop;
 }
 
-// this requires a dependency that is not registered
 class WeirdServiceImpl implements WeirdService {
   constructor({
     someNonexistentKey,
@@ -59,35 +55,44 @@ class WeirdServiceImpl implements WeirdService {
   wtf = noop;
 }
 
-// build the container
-const result = registerSingleton({
+// Create and build the container
+const builder = registerSingleton({
   myService: fromClass(MyServiceImpl),
   myRepository: fromClass(MyRepositoryImpl),
   weirdDependent: fromClass(WeirdServiceImpl),
-}).build(); // you can also use registerSingleton() multiple times
+});
 
-type MyResult = typeof result;
+const container = builder.build();
+```
+
+```ts
+type Container = typeof container;
 /*
-type MyResult = {
-    readonly myRepository: MyRepositoryImpl;
-    readonly myService: MyServiceImpl;
-    // no weirdDependent because it requires a dependency that is not registered
+type Container = {
+  readonly myRepository: MyRepositoryImpl;
+  readonly myService: MyServiceImpl;
+  // and more ...
+  // 'weirdDependent' is excluded due to missing dependency: 'someNonexistentKey'
 }
 */
-type Unresolved = UnresolvedKeys<typeof builder, "weirdDependent">;
+
+type Missing = UnresolvedKeys<typeof builder, "weirdDependent">;
 // "someNonexistentKey"
 ```
 
-## Advanced Usage With Scope
+## Scoped Dependency Example
 
 ```ts
-declare const builder: DIContainerBuilder<Something /* ... */>;
-declare class ContextPrinter {
-  constructor(dependencies: Record<"context", ScopeContext>);
-  public printSomething(): void;
+declare const builder: DIContainerBuilder<SomeRegistrationSet>;
+
+class ContextPrinter {
+  constructor(deps: Record<"context", ScopeContext>) {}
+  printSomething(): void {
+    console.log(this.context.something);
+  }
 }
 
-// scoped instances will be instantiate per scope
+// Register scoped dependencies
 const container = builder
   .registerScoped({
     context: fromFunction<ScopeContext>(() => ({ something: "hello" })),
@@ -95,14 +100,15 @@ const container = builder
   })
   .build();
 
-container.contextPrinter.printSomething(); // hello
+// Use shared scope
+container.contextPrinter.printSomething(); // "hello"
 
-// you can create scope using _scope() method
-const scopedContainer = container._scope();
-scopedContainer.context.something = "world";
+// Create a new scope
+const scoped = container._scope();
+scoped.context.something = "world";
 
-container.contextPrinter.printSomething(); // hello
-scopedContainer.contextPrinter.printSomething(); // world
+container.contextPrinter.printSomething(); // "hello"
+scoped.contextPrinter.printSomething();    // "world"
 ```
 
 ## License
