@@ -1,7 +1,21 @@
-import { registerSingleton, fromClass, fromFunction } from "di-typed";
+import {
+  registerSingleton,
+  fromClass,
+  fromFunction,
+  UnresolvedKeys,
+  fromValue,
+} from "di-typed";
+
+type IsSameType<X, Y> = (<T>() => T extends X ? 0 : 1) extends <
+  T
+>() => T extends Y ? 0 : 1
+  ? true
+  : false;
 
 function noop(...args: any[]): any {}
 
+function assert(value: boolean): void;
+function assert<T extends true>(value: T): void;
 function assert(value: boolean) {
   if (!value) {
     throw new Error("Assertion failed");
@@ -66,27 +80,96 @@ function assertThrow(fn: () => void) {
     wtf = noop;
   }
 
-  const result = registerSingleton({
+  const builder = registerSingleton({
     myRepository: fromClass(MyRepositoryImpl),
     weirdDependent: fromClass(WeirdServiceImpl),
-  })
-    .registerScoped({
-      context: fromFunction<ScopeContext>(() => ({ something: "hello" })),
-      myService: fromClass(MyServiceImpl),
-    })
-    .build();
+  }).registerScoped({
+    context: fromFunction<ScopeContext>(() => ({ something: "hello" })),
+    myService: fromClass(MyServiceImpl),
+  });
 
-  assert(result.myService.returnSomething() === "hello");
+  const container = builder.build();
 
-  const scope = result._scope();
+  assert(container.myService.returnSomething() === "hello");
+
+  const scope = container._scope();
 
   scope.context.something = "world";
 
-  assert(result.myService.returnSomething() === "hello");
+  assert(container.myService.returnSomething() === "hello");
   assert(scope.myService.returnSomething() === "world");
 
   assertThrow(() => {
     // @ts-expect-error
-    result.weirdDependent;
+    container.weirdDependent;
   });
+
+  assert<
+    IsSameType<
+      UnresolvedKeys<typeof builder, "weirdDependent">,
+      "someNonexistentKey"
+    >
+  >(true);
+})();
+
+// Why not resolved
+(() => {
+  interface A {
+    a: string;
+  }
+  interface B {
+    b: string;
+  }
+  interface C {
+    c: string;
+  }
+
+  interface D {
+    d: string;
+  }
+
+  interface E {
+    e: string;
+  }
+
+  interface F {
+    f: string;
+  }
+
+  interface G {
+    g: string;
+  }
+
+  interface H {
+    h: string;
+  }
+
+  interface AllRegistrations {
+    a: A;
+    b: B;
+    c: C;
+    d: D;
+    e: E;
+    f: F;
+    g: G;
+    h: H;
+  }
+
+  const builder = registerSingleton({
+    a: fromValue({ a: "a" }),
+    b: fromValue({ b: "b" }),
+    c: fromFunction(({ a, b }: Pick<AllRegistrations, "a" | "b">) => ({
+      c: a.a + b.b,
+    })),
+    e: fromFunction(({ g, h }: Pick<AllRegistrations, "g" | "h">) => ({
+      e: g.g + h.h,
+    })),
+    f: fromFunction(({ d, e }: Pick<AllRegistrations, "d" | "e">) => ({
+      f: d.d + e.e,
+    })),
+  });
+
+  assert<IsSameType<UnresolvedKeys<typeof builder, "f">, "d" | "g" | "h">>(
+    true
+  );
 })();

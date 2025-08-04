@@ -843,3 +843,105 @@ export const fromValue = DIRegistration.fromValue;
 export const registerSingleton = DIContainerBuilder.registerSingleton;
 export const registerScoped = DIContainerBuilder.registerScoped;
 export const registerTransient = DIContainerBuilder.registerTransient;
+
+export type UnresolvedKeys<
+  ContainerBuilder,
+  ToResolve extends ContainerBuilder extends DIContainerBuilder<
+    infer I extends Partial<
+      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    >,
+    infer J extends Partial<
+      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    >,
+    infer K extends Partial<
+      Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+    >
+  >
+    ? keyof (I & J & K)
+    : never
+> = ContainerBuilder extends DIContainerBuilder<
+  infer I extends Partial<
+    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+  >,
+  infer J extends Partial<
+    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+  >,
+  infer K extends Partial<
+    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+  >
+>
+  ? UnresolvedKeysForMap<I & J & K, ToResolve>
+  : never;
+
+export type UnresolvedKeysForMap<
+  Map extends Partial<
+    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+  >,
+  ToResolve extends keyof Map
+> = UnresolvedKeysInternal<
+  Map,
+  ToResolve,
+  Extract<
+    keyof DIRegistrationToDependencies<Exclude<Map[ToResolve], undefined>>,
+    string
+  >
+>;
+
+type UnresolvedKeysInternal<
+  Map extends Partial<
+    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+  >,
+  Resolved extends keyof Map,
+  Unresolved extends string
+> = TryResolve<Map, Resolved, Unresolved> extends [
+  infer I extends keyof Map,
+  infer J extends string
+]
+  ? [I] extends [never]
+    ? J
+    : UnresolvedKeysInternal<Map, Resolved | I, J>
+  : never;
+
+// consumes Unresolved, resolves to [newly resolved keys, unresolved keys]
+type TryResolve<
+  Map extends Partial<
+    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+  >,
+  Resolved extends keyof Map,
+  Unresolved extends string
+> = TryResolveInternal<
+  Map,
+  Resolved,
+  Unresolved,
+  Exclude<
+    | {
+        [K in Extract<keyof Map, Unresolved>]: Extract<
+          keyof DIRegistrationToDependencies<Exclude<Map[K], undefined>>,
+          keyof Map
+        >;
+      }[Extract<keyof Map, Unresolved>]
+    | Extract<keyof Map, Unresolved>,
+    Resolved
+  >
+>;
+
+type TryResolveInternal<
+  Map extends Partial<
+    Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
+  >,
+  Resolved extends keyof Map,
+  Unresolved extends string,
+  NewlyResolvedKeys extends keyof Map
+> = [
+  newlyResolvedKeys: NewlyResolvedKeys,
+  unresolvedKeys: Exclude<
+    | {
+        [K in Extract<keyof Map, Unresolved>]: Exclude<
+          keyof DIRegistrationToDependencies<Exclude<Map[K], undefined>>,
+          keyof Map
+        >;
+      }[Extract<keyof Map, Unresolved>]
+    | Unresolved,
+    Resolved | NewlyResolvedKeys
+  >
+];

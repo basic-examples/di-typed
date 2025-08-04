@@ -9,6 +9,20 @@ It ensures that each component only declares exactly the dependencies it needs â
 - Designed especially for testability
 - Usual lifetime support: singleton, scoped, transient
 
+## API
+
+- `fromClass()` - create registration using class accepts dependencies as first constructor parameter
+- `fromFunction()` - create registration using function accepts dependencies as first parameter
+- `fromValue()` - create registration using value
+- `registerSingleton()` - create `DIContainerBuilder` from registrations
+- `registerScoped()` - same as above, but with scoped lifetime
+- `registerTransient()` - same as above, but with transient lifetime
+- `DIContainerBuilder::register*()` - same as three above, but based on `this`
+- `DIContainerBuilder::build()` - build `DIContainer`
+- `DIContainer::_scope()` - create scoped container
+- `UnresolvedKeys<ContainerBuilder, Key>` - type to check which keys are missing
+- `CircularDependencyError` - error thrown on circular dependency, likely unused
+
 ## Basic Usage
 
 ```ts
@@ -60,6 +74,8 @@ type MyResult = {
     // no weirdDependent because it requires a dependency that is not registered
 }
 */
+type Unresolved = UnresolvedKeys<typeof builder, "weirdDependent">;
+// "someNonexistentKey"
 ```
 
 ## Advanced Usage With Scope
