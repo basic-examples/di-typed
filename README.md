@@ -7,8 +7,9 @@ It ensures that each component only declares exactly the dependencies it needs â
 - Auto-prune registrations with unmet dependencies
 - Explicit and minimal dependency declarations
 - Designed especially for testability
+- Usual lifetime support: singleton, scoped, transient
 
-## Usage
+## Basic Usage
 
 ```ts
 // define all registrations
@@ -45,11 +46,11 @@ class WeirdServiceImpl implements WeirdService {
 }
 
 // build the container
-const result = DIContainerBuilder.register({
-  myService: DIRegistration.fromClass(MyServiceImpl),
-  myRepository: DIRegistration.fromClass(MyRepositoryImpl),
-  weirdDependent: DIRegistration.fromClass(WeirdServiceImpl),
-}).build(); // you can also use register() multiple times
+const result = registerSingleton({
+  myService: fromClass(MyServiceImpl),
+  myRepository: fromClass(MyRepositoryImpl),
+  weirdDependent: fromClass(WeirdServiceImpl),
+}).build(); // you can also use registerSingleton() multiple times
 
 type MyResult = typeof result;
 /*
@@ -59,6 +60,33 @@ type MyResult = {
     // no weirdDependent because it requires a dependency that is not registered
 }
 */
+```
+
+## Advanced Usage With Scope
+
+```ts
+declare const builder: DIContainerBuilder<Something /* ... */>;
+declare class ContextPrinter {
+  constructor(dependencies: Record<"context", ScopeContext>);
+  public printSomething(): void;
+}
+
+// scoped instances will be instantiate per scope
+const container = builder
+  .registerScoped({
+    context: fromFunction<ScopeContext>(() => ({ something: "hello" })),
+    contextPrinter: fromClass(ContextPrinter),
+  })
+  .build();
+
+container.contextPrinter.printSomething(); // hello
+
+// you can create scope using _scope() method
+const scopedContainer = container._scope();
+scopedContainer.context.something = "world";
+
+container.contextPrinter.printSomething(); // hello
+scopedContainer.contextPrinter.printSomething(); // world
 ```
 
 ## License
