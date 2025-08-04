@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "di-typed",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "DI library enables precise, minimal dependencies for testing",
   "repository": {
     "type": "git",

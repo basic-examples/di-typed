@@ -173,3 +173,34 @@ function assertThrow(fn: () => void) {
     true
   );
 })();
+
+// Optional dependencies
+(() => {
+  interface MyRepository {
+    hasDB(): boolean;
+  }
+  interface MyDB {
+    doSomething(): void;
+  }
+
+  interface AllRegistrations {
+    myRepository: MyRepository;
+    myDB?: MyDB;
+  }
+
+  class MyRepositoryImpl implements MyRepository {
+    private readonly myDB: MyDB | undefined;
+    constructor({ myDB }: Pick<AllRegistrations, "myDB">) {
+      this.myDB = myDB;
+    }
+    hasDB = () => this.myDB !== undefined;
+  }
+
+  const builder = registerSingleton({
+    myRepository: fromClass(MyRepositoryImpl),
+    myDB: fromValue(undefined),
+  });
+  const container = builder.build();
+
+  assert(container.myRepository.hasDB() === false);
+})();

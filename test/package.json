@@ -2,7 +2,7 @@
   "private": true,
   "name": "@this-project/test",
   "scripts": {
-    "start": "tsx src"
+    "start": "npm install && tsx src"
   },
   "dependencies": {
     "di-typed": "file:../dist",

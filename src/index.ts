@@ -658,6 +658,10 @@ type TryResolveAnyKey<
     : K;
 }[Exclude<keyof Map, ResolvedKeys>];
 
+type Internal<T> = {
+  [K in keyof T]?: [T[K]];
+};
+
 export class DIContainerBuilder<
   const Singleton extends Partial<
     Record<string, DIRegistration<unknown, Partial<Record<string, unknown>>>>
@@ -766,11 +770,13 @@ export class DIContainerBuilder<
 
   public build(): BuildResult<Singleton, Scoped, Transient>;
   public build(): unknown {
-    const singletonInstances: Partial<RegistrationMapToInstanceMap<Singleton>> =
-      {};
+    const singletonInstances: Internal<
+      RegistrationMapToInstanceMap<Singleton>
+    > = {};
     const resolving: Partial<Record<keyof Singleton, true>> = {};
     const scope = () => {
-      const scopedInstances: Partial<RegistrationMapToInstanceMap<Scoped>> = {};
+      const scopedInstances: Internal<RegistrationMapToInstanceMap<Scoped>> =
+        {};
       let proxy: RegistrationMapToInstanceMap<Singleton & Scoped & Transient>;
       const resolve = <
         const K extends Extract<keyof (Singleton & Scoped & Transient), string>
@@ -781,7 +787,7 @@ export class DIContainerBuilder<
           if (singletonInstances[key] !== undefined) {
             return singletonInstances[
               key
-            ] as RegistrationMapToInstanceMap<Singleton>[K];
+            ][0] as RegistrationMapToInstanceMap<Singleton>[K];
           }
           if (resolving[key]) {
             throw new CircularDependencyError(
@@ -793,14 +799,14 @@ export class DIContainerBuilder<
           const result = this.singleton[key]!.instantiate(
             proxy
           ) as RegistrationMapToInstanceMap<Singleton>[K];
-          singletonInstances[key] = result;
+          singletonInstances[key] = [result];
           delete resolving[key];
           return result;
         } else if (this.scoped[key]) {
           if (scopedInstances[key] !== undefined) {
             return scopedInstances[
               key
-            ] as RegistrationMapToInstanceMap<Scoped>[K];
+            ][0] as RegistrationMapToInstanceMap<Scoped>[K];
           }
           if (resolving[key]) {
             throw new CircularDependencyError(
@@ -812,7 +818,7 @@ export class DIContainerBuilder<
           const result = this.scoped[key]!.instantiate(
             proxy
           ) as RegistrationMapToInstanceMap<Scoped>[K];
-          scopedInstances[key] = result;
+          scopedInstances[key] = [result];
           delete resolving[key];
           return result;
         } else if (this.transient[key]) {
@@ -823,14 +829,17 @@ export class DIContainerBuilder<
           throw new Error(`Key ${key} not found`);
         }
       };
-      proxy = new Proxy(singletonInstances, {
-        get(target, key) {
-          if (key === "_scope") {
-            return scope;
-          }
-          return resolve(key as Extract<keyof Singleton, string>);
-        },
-      }) as RegistrationMapToInstanceMap<Singleton & Scoped & Transient>;
+      proxy = new Proxy(
+        {},
+        {
+          get(_target, key) {
+            if (key === "_scope") {
+              return scope;
+            }
+            return resolve(key as Extract<keyof Singleton, string>);
+          },
+        }
+      ) as RegistrationMapToInstanceMap<Singleton & Scoped & Transient>;
       return proxy;
     };
     return scope();
