@@ -82,6 +82,22 @@ type Missing = UnresolvedKeys<typeof builder, "weirdDependent">;
 // "someNonexistentKey"
 ```
 
+## Lifetime Semantics
+
+Each registration must specify its lifetime explicitly via `.singleton()`, `.scoped()`, or `.transient()`.
+
+| Lifetime    | Description                                                           | Instance Lifetime |
+|-------------|-----------------------------------------------------------------------|-------------------|
+| `singleton` | One shared instance across the entire container, including all scopes | Per container     |
+| `scoped`    | A new instance is created for each scope, shared within that scope    | Per scope         |
+| `transient` | A new instance is created **every time** it is accessed or injected   | Per access        |
+
+### When to use
+
+* **singleton**: Use for stateless services or long-lived shared instances (e.g., repositories, loggers)
+* **scoped**: Use for contextual or per-request state (e.g., user context, trace id, DI-managed `DisposeScope`)
+* **transient**: Use for disposable or short-lived instances, or when isolation between usages is needed
+
 ## Scoped Dependency Example
 
 ```ts
@@ -114,6 +130,81 @@ scoped.context.something = "world";
 
 container.contextPrinter.printSomething(); // "hello"
 scoped.contextPrinter.printSomething();    // "world"
+```
+
+## Need alias?
+
+Maybe you don't need it, so the library doesn't include it.
+
+If you really need alias, you can define your own.
+
+```ts
+export function createFromAlias<Map>() {
+  return function fromAlias<const N extends keyof Map>(
+    name: N
+  ): DIRegistration<Map[N], Pick<Map, N>, "singleton"> {
+    return fromFunction((deps: Pick<Map, N>) => deps[name]);
+  };
+}
+
+export const fromAlias = createFromAlias<All>();
+```
+
+## Need dispose?
+
+Maybe you don't need it, so the library doesn't include it.
+
+If you really need dispose, you can define your own.
+
+```ts
+class DisposeAll {
+  private readonly disposables: (() => void)[] = [];
+
+  public add(disposable: () => void) {
+    this.disposables.push(disposable);
+  }
+
+  public dispose() {
+    this.disposables.forEach((disposable) => disposable());
+  }
+}
+
+class DisposeScope extends DisposeAll {
+  constructor({ disposeAll }: Pick<All, "disposeAll">) {
+    super();
+    disposeAll.add(() => {
+      this.dispose();
+    });
+  }
+}
+
+interface All {
+  disposeAll: DisposeAll;
+  disposeScope: DisposeScope;
+  // ...
+}
+
+// from singleton
+class SingletonDisposable {
+  public disposed: boolean;
+  constructor({ disposeAll }: Pick<All, "disposeAll">) {
+    this.disposed = false;
+    disposeAll.add(() => {
+      this.disposed = true;
+    });
+  }
+}
+
+// from scoped
+class ScopedDisposable {
+  public disposed: boolean;
+  constructor({ disposeScope }: Pick<All, "disposeScope">) {
+    this.disposed = false;
+    disposeScope.add(() => {
+      this.disposed = true;
+    });
+  }
+}
 ```
 
 ## License

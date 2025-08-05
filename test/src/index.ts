@@ -4,6 +4,7 @@ import {
   fromFunction,
   UnresolvedKeys,
   fromValue,
+  DIRegistration,
 } from "di-typed";
 
 type Expand<T> = T extends infer I extends object
@@ -218,4 +219,133 @@ function assertThrow(fn: () => void) {
     b: fromClass(BImpl).transient(),
   });
   assert<typeof builder2 extends string ? true : false>(true);
+})();
+
+// Alias
+(() => {
+  interface A {
+    a: string;
+  }
+
+  interface All {
+    a: A;
+    b: A;
+  }
+
+  function createFromAlias<Map>() {
+    return function fromAlias<const N extends keyof Map>(
+      name: N
+    ): DIRegistration<Map[N], Pick<Map, N>, "singleton"> {
+      return fromFunction((deps: Pick<Map, N>) => deps[name]);
+    };
+  }
+
+  const fromAlias = createFromAlias<All>();
+
+  class AImpl implements A {
+    a = "a";
+  }
+
+  const builder = register({
+    a: fromClass(AImpl),
+    b: fromAlias("a"),
+  });
+
+  const container = builder.build();
+
+  assert(container.a === container.b);
+})();
+
+// Dispose
+(() => {
+  class DisposeAll {
+    private readonly disposables: (() => void)[] = [];
+
+    public add(disposable: () => void) {
+      this.disposables.push(disposable);
+    }
+
+    public dispose() {
+      this.disposables.forEach((disposable) => disposable());
+    }
+  }
+
+  class DisposeScope extends DisposeAll {
+    constructor({ disposeAll }: Pick<All, "disposeAll">) {
+      super();
+      disposeAll.add(() => {
+        this.dispose();
+      });
+    }
+  }
+
+  interface All {
+    disposeAll: DisposeAll;
+    disposeScope: DisposeScope;
+    // ...
+  }
+
+  class SingletonDisposable {
+    public disposed: boolean;
+    constructor({ disposeAll }: Pick<All, "disposeAll">) {
+      this.disposed = false;
+      disposeAll.add(() => {
+        this.disposed = true;
+      });
+    }
+  }
+
+  class ScopedDisposable {
+    public disposed: boolean;
+    constructor({ disposeScope }: Pick<All, "disposeScope">) {
+      this.disposed = false;
+      disposeScope.add(() => {
+        this.disposed = true;
+      });
+    }
+  }
+
+  const container = register({
+    disposeAll: fromClass(DisposeAll),
+    disposeScope: fromClass(DisposeScope).scoped(),
+    // ...
+    singletonDisposable: fromClass(SingletonDisposable),
+    scopedDisposable1: fromClass(ScopedDisposable).scoped(),
+    scopedDisposable2: fromClass(ScopedDisposable).scoped(),
+  }).build();
+
+  const scope1 = container._scope();
+  const scope2 = container._scope();
+
+  assert(container.singletonDisposable.disposed === false);
+  assert(container.scopedDisposable1.disposed === false);
+  assert(container.scopedDisposable2.disposed === false);
+  assert(scope1.singletonDisposable.disposed === false);
+  assert(scope1.scopedDisposable1.disposed === false);
+  assert(scope1.scopedDisposable2.disposed === false);
+  assert(scope2.singletonDisposable.disposed === false);
+  assert(scope2.scopedDisposable1.disposed === false);
+  assert(scope2.scopedDisposable2.disposed === false);
+
+  scope1.disposeScope.dispose();
+
+  assert(container.singletonDisposable.disposed === false);
+  assert(container.scopedDisposable1.disposed === false);
+  assert(container.scopedDisposable2.disposed === false);
+  assert(scope1.singletonDisposable.disposed === false);
+  assert(scope1.scopedDisposable1.disposed === true);
+  assert(scope1.scopedDisposable2.disposed === true);
+  assert(scope2.singletonDisposable.disposed === false);
+  assert(scope2.scopedDisposable1.disposed === false);
+  assert(scope2.scopedDisposable2.disposed === false);
+
+  container.disposeAll.dispose();
+
+  assert(container.singletonDisposable.disposed === true);
+  assert(container.scopedDisposable1.disposed === true);
+  assert(container.scopedDisposable2.disposed === true);
+  assert(scope1.singletonDisposable.disposed === true);
+  assert(scope1.scopedDisposable1.disposed === true);
+  assert(scope1.scopedDisposable2.disposed === true);
+  assert(scope2.singletonDisposable.disposed === true);
 })();
