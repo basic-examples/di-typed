@@ -458,7 +458,7 @@ type RegisterErrorInternal<
           : never);
 
 export interface DIContainerBase<T> {
-  _scope: () => DIContainer<T>;
+  readonly _scope: () => DIContainer<T>;
 }
 
 export type DIContainer<T> = T & DIContainerBase<T>;

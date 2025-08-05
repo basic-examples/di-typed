@@ -6,6 +6,10 @@ import {
   fromValue,
 } from "di-typed";
 
+type Expand<T> = T extends infer I extends object
+  ? { [K in keyof I]: I[K] }
+  : T;
+
 type IsSameType<X, Y> = (<T>() => T extends X ? 0 : 1) extends <
   T
 >() => T extends Y ? 0 : 1
@@ -88,6 +92,7 @@ function assertThrow(fn: () => void) {
   });
 
   const container = builder.build();
+  type Container = Expand<typeof container>;
 
   assert(container.myService.returnSomething() === "hello");
 
