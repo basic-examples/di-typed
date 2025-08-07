@@ -5,6 +5,7 @@ import {
   UnresolvedKeys,
   fromValue,
   DIRegistration,
+  createFromAlias,
 } from "di-typed";
 
 type Expand<T> = T extends infer I extends object
@@ -230,14 +231,6 @@ function assertThrow(fn: () => void) {
   interface All {
     a: A;
     b: A;
-  }
-
-  function createFromAlias<Map>() {
-    return function fromAlias<const N extends keyof Map>(
-      name: N
-    ): DIRegistration<Map[N], Pick<Map, N>, "singleton"> {
-      return fromFunction((deps: Pick<Map, N>) => deps[name]);
-    };
   }
 
   const fromAlias = createFromAlias<All>();

@@ -899,3 +899,11 @@ type TryResolveInternal<
     Resolved | NewlyResolvedKeys
   >
 ];
+
+export function createFromAlias<Map>() {
+  return function fromAlias<const N extends keyof Map>(
+    name: N
+  ): DIRegistration<Map[N], Pick<Map, N>, "singleton"> {
+    return fromFunction((deps: Pick<Map, N>) => deps[name]);
+  };
+}

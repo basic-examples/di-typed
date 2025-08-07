@@ -14,16 +14,17 @@ It enforces precise dependency declarations, ensuring that components only recei
 * `fromClass()` – Create a `DIRegistration` from a class whose first constructor parameter receives dependencies
 * `fromFunction()` – Create `DIRegistration` by a factory function that receives dependencies as its first parameter
 * `fromValue()` – Create `DIRegistration` by a constant value
-* `DIRegistration::singleton()` – Create `DIRegistration` with singleton lifetime
-* `DIRegistration::scoped()` – Create `DIRegistration` with scoped lifetime
-* `DIRegistration::transient()` – Create `DIRegistration` with transient lifetime
+* `<DIRegistration>.singleton()` – Create `DIRegistration` with singleton lifetime
+* `<DIRegistration>.scoped()` – Create `DIRegistration` with scoped lifetime
+* `<DIRegistration>.transient()` – Create `DIRegistration` with transient lifetime
 * `register()` – Create `DIContainerBuilder` with `DIRegistration` map
-* `DIContainerBuilder::register()` – Instance method variant of `register()` for incremental registration
-* `DIContainerBuilder::build()` – Finalize and create a `DIContainer`
-* `DIContainer::_scope()` – Instantiate a new scoped container
-* `UnresolvedKeys<Builder, Key>` – Type-level utility to check which dependencies are missing for a given key
-  * If there's a circular dependency, `UnresolvedKeys<Builder, Key>` resolves to `never`.
+* `<DIContainerBuilder>.register()` – Instance method variant of `register()` for incremental registration
+* `<DIContainerBuilder>.build()` – Finalize and create a `DIContainer`
+* `<DIContainer>._scope()` – Instantiate a new scoped container
 * `CircularDependencyError` – Error thrown when a cycle is detected in dependency graph
+* `createFromAlias<Map>()` - Create a `fromAlias` function with your own `All` type
+* `UnresolvedKeys<Builder, Key>` – Type-level utility to check which dependencies are missing for a given key
+  * If there's a circular dependency, `UnresolvedKeys<Builder, Key>` may resolves to `never`.
 
 ## Basic Usage Example
 
@@ -82,6 +83,14 @@ type Missing = UnresolvedKeys<typeof builder, "weirdDependent">;
 // "someNonexistentKey"
 ```
 
+## What is `All` type?
+
+`All` type is a type that contains all the potential dependencies that are registered in the container.
+
+You don't absolutely need it, but it's very inconvenient without it.
+
+It enables better type safety and developer ergonomics.
+
 ## Lifetime Semantics
 
 Each registration must specify its lifetime explicitly via `.singleton()`, `.scoped()`, or `.transient()`.
@@ -134,20 +143,12 @@ scoped.contextPrinter.printSomething();    // "world"
 
 ## Need alias?
 
-Maybe you don't need it, so the library doesn't include it.
-
-If you really need alias, you can define your own.
+You can define your own `fromAlias` function using `createFromAlias` function with your own `All` type.
 
 ```ts
-export function createFromAlias<Map>() {
-  return function fromAlias<const N extends keyof Map>(
-    name: N
-  ): DIRegistration<Map[N], Pick<Map, N>, "singleton"> {
-    return fromFunction((deps: Pick<Map, N>) => deps[name]);
-  };
-}
-
 export const fromAlias = createFromAlias<All>();
+
+// usage: builder.register({ db: fromAlias("real_db").scoped() });
 ```
 
 ## Need dispose?
