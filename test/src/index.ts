@@ -6,6 +6,7 @@ import {
   fromValue,
   DIRegistration,
   createFromAlias,
+  InferContainerType,
 } from "di-typed";
 
 type Expand<T> = T extends infer I extends object
@@ -114,6 +115,17 @@ function assertThrow(fn: () => void) {
     IsSameType<
       UnresolvedKeys<typeof builder, "weirdDependent">,
       "someNonexistentKey"
+    >
+  >(true);
+
+  assert<
+    IsSameType<
+      InferContainerType<Container>,
+      {
+        readonly myRepository: MyRepositoryImpl;
+        readonly context: ScopeContext;
+        readonly myService: MyServiceImpl;
+      }
     >
   >(true);
 })();
@@ -247,6 +259,12 @@ function assertThrow(fn: () => void) {
   const container = builder.build();
 
   assert(container.a === container.b);
+  assert<
+    IsSameType<
+      InferContainerType<typeof container>,
+      { readonly a: AImpl; readonly b: A }
+    >
+  >(true);
 })();
 
 // Dispose

@@ -25,6 +25,7 @@ It enforces precise dependency declarations, ensuring that components only recei
 * `createFromAlias<Map>()` - Create a `fromAlias` function with your own `All` type
 * `UnresolvedKeys<Builder, Key>` – Type-level utility to check which dependencies are missing for a given key
   * If there's a circular dependency, `UnresolvedKeys<Builder, Key>` may resolves to `never`.
+* `InferContainerType<Container>` – Infer the type of the container from the `DIContainer`
 
 ## Basic Usage Example
 
@@ -69,13 +70,11 @@ const container = builder.build();
 ```
 
 ```ts
-type Container = typeof container;
+type Container = InferContainerType<typeof container>;
 /*
 type Container = {
   readonly myRepository: MyRepositoryImpl;
   readonly myService: MyServiceImpl;
-  // and more ...
-  // 'weirdDependent' is excluded due to missing dependency: 'someNonexistentKey'
 }
 */
 

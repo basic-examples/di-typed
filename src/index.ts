@@ -907,3 +907,5 @@ export function createFromAlias<Map>() {
     return fromFunction((deps: Pick<Map, N>) => deps[name]);
   };
 }
+
+export type InferContainerType<T> = T extends DIContainer<infer I> ? I : never;
